@@ -6,15 +6,30 @@ Upload a CSV or Excel file, keep the original, infer column types, flag rows tha
 break the pattern, then download Excel/PDF reports, view a Plotly dashboard, or
 email the PDF on a daily or weekly schedule.
 
-## Live demo
+**Stack:** Flask, SQLAlchemy, PostgreSQL (JSONB), pandas, openpyxl, ReportLab,
+APScheduler, Plotly.
 
-[Live demo link placeholder](https://example.com)
+## Demo
 
-- Runs on a free tier, so the first load may take about a minute.
-- Email is demo mode: sends are written to `outbox/` instead of being delivered.
-- Uploads are isolated by browser session and auto-delete after 24 hours.
-- Demo only. Don't upload real data.
-- Not production hardened: authentication and Alembic migrations would come next.
+[![DataPilot dashboard](docs/dashboard.png)](VIDEO_URL_HERE)
+
+**[Watch the 90-second walkthrough](VIDEO_URL_HERE)**
+
+The video covers: uploading a messy CSV, the flagged rows and inferred column
+types, the dashboard, the Excel and PDF exports, and the email schedule screen.
+
+## What it does
+
+- **Keeps the original.** The uploaded file is stored untouched.
+- **Infers column types** from the data instead of asking you to define a schema.
+- **Flags, never drops.** Rows that break the pattern are marked with the reason,
+  so nothing silently disappears.
+- **Catches duplicate business keys** (`order_id`, `invoice_id`, and similar) and
+  flags both the first occurrence and the repeat.
+- **Reports from clean data only.** The dashboard and PDF aggregate valid rows, so
+  bad data cannot distort a chart.
+- **Excel export** with separate Summary, Clean data and Flagged sheets.
+- **Scheduled email** of the same PDF, daily or weekly.
 
 ## Run it
 
@@ -28,8 +43,8 @@ cp .env.example .env
 flask --app run.py run --debug
 ```
 
-Open http://127.0.0.1:5000 and upload `sample_data/messy_sales.csv`, or use the
-"Try the sample data" button.
+Open http://127.0.0.1:5000 and use the "Try the sample data" button, or upload
+`sample_data/messy_sales.csv`.
 
 ## Tests
 
@@ -37,8 +52,8 @@ Open http://127.0.0.1:5000 and upload `sample_data/messy_sales.csv`, or use the
 pytest
 ```
 
-The app tests use a temporary SQLite database, so they do not need the Docker
-Postgres container.
+The pipeline and report tests need no Flask and no database. The app tests use a
+temporary SQLite database, so they do not need the Docker Postgres container.
 
 ## Email
 
@@ -50,11 +65,24 @@ APScheduler job checks every minute and attaches the same PDF the download butto
 produces. Run one process per database; multiple workers would each send. For a
 larger deployment, move the job to a single worker or an external cron.
 
-Demo limits: one recipient per schedule, three schedules per browser session, 5 MB
-uploads, 20,000 rows and 100 columns per file. Imports and their files are deleted
-after 24 hours.
+## Safety limits
 
-## Deploy
+This is a portfolio project, but it has basic guardrails:
+
+- Each import belongs to a browser session. Every detail, dashboard, export,
+  schedule and delete route checks the session, so one visitor cannot open
+  another's data.
+- Uploads: `.csv`, `.xlsx`, `.xls` only, 5 MB max, 20,000 rows and 100 columns max.
+  Files are stored under random UUID names, never the uploaded filename.
+- Imports and their stored files are deleted 24 hours after upload.
+- Excel export escapes cells that start with `=`, `+`, `-` or `@` to prevent
+  formula injection.
+- Schedules: one recipient each, three per browser session, with address
+  validation.
+- `SECRET_KEY` is required from the environment, and session cookies are
+  `HttpOnly`, `SameSite=Lax` and `Secure` by default.
+
+## Deploying
 
 `Procfile` runs a single Gunicorn worker on purpose because APScheduler runs
 in-process:
@@ -63,9 +91,20 @@ in-process:
 gunicorn -w 1 -b 0.0.0.0:$PORT "app:create_app()"
 ```
 
-Required environment variables: `SECRET_KEY`, `DATABASE_URL`, `SESSION_COOKIE_SECURE`
-(defaults to on; set `0` only for local HTTP), `ENABLE_SCHEDULER`, and the `SMTP_*`
-values if real email is wanted. Leave `SMTP_HOST` empty for demo mode.
+Required environment variables: `SECRET_KEY`, `DATABASE_URL`,
+`SESSION_COOKIE_SECURE` (defaults to on; set `0` only for local HTTP),
+`ENABLE_SCHEDULER`, and the `SMTP_*` values if real email is wanted.
+
+## Known limitations
+
+- No user accounts. Isolation is per browser session, which suits a demo but not
+  multi-user production use.
+- `db.create_all()` creates tables at startup. Alembic migrations would replace it
+  before any real deployment.
+- `.xlsx` files are fully loaded by pandas, so very large or crafted workbooks can
+  use a lot of memory. Size and row caps reduce the risk but do not remove it.
+- The dashboard picks the first category column with 2 to 20 distinct values and
+  the first numeric metric. This is a v1 heuristic.
 
 ## Structure
 
@@ -91,22 +130,19 @@ app/
   presentation.py    template filters for labels, numbers, dates
   templates/         Jinja views
   static/            stylesheet and upload interactions
-tests/               pipeline and report tests (no Flask, no database)
+tests/               pipeline, report, scheduling and app (session isolation,
+                     upload validation) tests
 ```
 
 ## Design notes
 
-- Each import belongs to a browser session. Every detail, dashboard, export, schedule and delete route checks the session.
-- Imports and their stored files are removed 24 hours after upload, and each upload request runs the cleanup first.
-- The original upload is stored under `uploads/` with a random UUID filename and referenced by `Import.stored_path`.
-- Each data row is stored in `ImportRow.data` as JSONB, so unexpected columns are adopted automatically.
+- The original upload is stored under `uploads/` and referenced by
+  `Import.stored_path`.
+- Each data row is stored in `ImportRow.data` as JSONB, so unexpected columns are
+  adopted automatically.
 - Rows are flagged (`is_valid = false`, `issues` JSONB), not dropped.
 - Text whitespace is normalized after validation; business values are not altered.
-- Duplicate business keys (`order_id`, `invoice_id`, `order_number`, `invoice_number`) flag both the first occurrence and the repeat.
 - Excel export separates clean rows from flagged rows so nothing is hidden.
-- Dashboard and PDF aggregate valid rows only, so bad data cannot distort charts.
-- The dashboard picks the first category column with 2–20 distinct values and the first numeric metric; this is a v1 heuristic.
-- `db.create_all()` is acceptable for this slice; add Alembic migrations before real deployments.
 
 ## Interface
 
