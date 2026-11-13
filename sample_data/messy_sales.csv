@@ -1,0 +1,11 @@
+order_id,order_date,customer,region,product,units,unit_price,discount_code
+A-1001,2026-01-05,Acme,North,Widget,3,10.00,
+B-1002,2026-01-06,Beta,South,Gadget,2,15.50,SAVE10
+C-1003,2026-01-07,Gamma,East,Widget,5,20.00,
+D-1004,2026-01-08,Delta,West,Gizmo,2,22.00,
+E-1005,2026-01-09,Epsilon,North,Gadget,4,15.50,
+F-1006,2026-01-10,Zeta,South,Widget,1,10.00,
+A-1001,2026-01-11,Acme,North,Widget,1,10.00,
+G-1007,2026-01-12,Eta,East,Gadget,two,15.50,
+H-1008,2026-01-13,Theta,West,Gizmo,3,not-a-price,
+,,,,,,,
