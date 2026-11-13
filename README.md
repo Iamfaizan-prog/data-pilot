@@ -13,7 +13,7 @@ APScheduler, Plotly.
 
 [![DataPilot dashboard](docs/dashboard.png)](VIDEO_URL_HERE)
 
-**[Watch the 90-second walkthrough](VIDEO_URL_HERE)**
+**[Watch the 90-second walkthrough](VIDEO_URL_HERE)** (will be added later)
 
 The video covers: uploading a messy CSV, the flagged rows and inferred column
 types, the dashboard, the Excel and PDF exports, and the email schedule screen.
