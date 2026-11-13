@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f6f1e7">
+  <title>{% block title %}DataPilot{% endblock %}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+{% from "_icons.html" import stamp, file, chart %}
+
+<div class="app-shell">
+  <aside class="sidebar">
+    <a class="brand" href="{{ url_for('main.index') }}">
+      <span class="brand-mark">{{ stamp(22) }}</span>
+      <span class="brand-name">DataPilot</span>
+    </a>
+
+    <nav class="nav" aria-label="Workspace">
+      <p class="nav-label">Workspace</p>
+      <a class="nav-link {{ 'is-active' if request.endpoint in ['main.index', 'main.import_detail', 'main.upload'] else '' }}"
+         href="{{ url_for('main.index') }}">
+        {{ file(18) }}
+        <span>Imports</span>
+        <span class="nav-count">{{ nav_import_count }}</span>
+      </a>
+      {% if nav_latest_import %}
+        <a class="nav-link {{ 'is-active' if request.endpoint == 'main.dashboard' else '' }}"
+           href="{{ url_for('main.dashboard', import_id=nav_latest_import.id) }}">
+          {{ chart(18) }}
+          <span>Latest report</span>
+        </a>
+      {% endif %}
+    </nav>
+
+    <div class="sidebar-foot">
+      <p class="nav-label">System</p>
+      <p class="status-row"><span class="status-dot is-live"></span> Scheduler running</p>
+      <p class="status-row"><span class="status-dot"></span> {{ "Email via SMTP" if smtp_configured else "Email runs in demo mode" }}</p>
+    </div>
+  </aside>
+
+  <div class="main-wrap">
+    <header class="topbar">
+      <a class="brand" href="{{ url_for('main.index') }}">
+        <span class="brand-mark">{{ stamp(20) }}</span>
+        <span class="brand-name">DataPilot</span>
+      </a>
+      <nav class="topbar-nav" aria-label="Workspace">
+        <a href="{{ url_for('main.index') }}">Imports</a>
+        {% if nav_latest_import %}
+          <a href="{{ url_for('main.dashboard', import_id=nav_latest_import.id) }}">Latest report</a>
+        {% endif %}
+      </nav>
+    </header>
+
+    <main class="page">
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          <div class="flashes">
+            {% for category, message in messages %}
+              <p class="flash flash-{{ category }}">{{ message }}</p>
+            {% endfor %}
+          </div>
+        {% endif %}
+      {% endwith %}
+
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+</div>
+
+<script src="{{ url_for('static', filename='app.js') }}" defer></script>
+</body>
+</html>
