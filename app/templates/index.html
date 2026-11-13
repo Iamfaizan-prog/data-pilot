@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+{% from "_icons.html" import stamp, upload, file %}
+
+{% block title %}Imports · DataPilot{% endblock %}
+
+{% block content %}
+<header class="page-head">
+  <div>
+    <p class="eyebrow">Workspace</p>
+    <h1>Imports</h1>
+    <p class="lede">Every spreadsheet is checked, kept, and ready to report</p>
+    <p class="lede">Demo only. Don't upload real data. Files are deleted after 24 hours.</p>
+  </div>
+</header>
+
+<div class="home-grid">
+  <section class="panel upload-panel">
+    <div class="panel-intro">
+      <p class="eyebrow">New import</p>
+      <h2>Bring in a spreadsheet</h2>
+      <p class="muted">CSV or Excel, up to 5 MB. Your original file stays untouched.</p>
+    </div>
+
+    <form class="upload-form" action="{{ url_for('main.upload') }}" method="post" enctype="multipart/form-data">
+      <label class="dropzone" for="file-input" data-dropzone>
+        <span class="dropzone-icon">{{ upload(24) }}</span>
+        <span class="dropzone-title">Drop a file here</span>
+        <span class="dropzone-hint">or choose from your computer</span>
+        <input class="sr-only" id="file-input" type="file" name="file" accept=".csv,.xlsx,.xls" required>
+      </label>
+      <div class="upload-actions">
+        <span class="file-name" data-file-name>CSV or Excel · up to 5 MB</span>
+        <button type="submit">Import spreadsheet</button>
+      </div>
+    </form>
+
+    <form class="inline-form" method="post" action="{{ url_for('main.import_sample') }}">
+      <button class="button-secondary" type="submit">Try the sample data</button>
+    </form>
+  </section>
+
+  <aside class="panel process-panel">
+    <div class="panel-intro">
+      <p class="eyebrow">After upload</p>
+      <h2>What happens next</h2>
+    </div>
+
+    <ol class="steps">
+      <li>
+        <span class="step-number">01</span>
+        <div>
+          <h3>The original is kept</h3>
+          <p>We store the file as sent, so totals can always be checked against the source.</p>
+        </div>
+      </li>
+      <li>
+        <span class="step-number">02</span>
+        <div>
+          <h3>Rows are checked</h3>
+          <p>Types, dates, numbers and duplicate order numbers are checked. Anything unclear is flagged, never deleted.</p>
+        </div>
+      </li>
+      <li>
+        <span class="step-number">03</span>
+        <div>
+          <h3>Clean data is ready</h3>
+          <p>Download Excel or PDF, view the dashboard, or send the report on a schedule.</p>
+        </div>
+      </li>
+    </ol>
+
+    <div class="stamp-note">
+      <span class="stamp-mark">{{ stamp(30) }}</span>
+      <div>
+        <p class="stamp-title">Nothing is silently discarded</p>
+        <p class="muted">Flagged rows stay visible with the reason attached.</p>
+      </div>
+    </div>
+  </aside>
+</div>
+
+<section class="panel">
+  <div class="panel-heading">
+    <div>
+      <p class="eyebrow">History</p>
+      <h2>Recent imports</h2>
+    </div>
+    <span class="meta">{{ nav_import_count }} total</span>
+  </div>
+
+  {% if imports %}
+    <div class="table-scroll">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>File</th>
+            <th>Uploaded</th>
+            <th class="is-number">Rows</th>
+            <th class="is-number">Clean</th>
+            <th class="is-number">Flagged</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in imports %}
+            <tr>
+              <td>
+                <a class="file-link" href="{{ url_for('main.import_detail', import_id=item.id) }}">
+                  <span class="file-icon">{{ file(17) }}</span>
+                  {{ item.filename }}
+                </a>
+              </td>
+              <td class="muted">{{ item.uploaded_at|stamp_time("%d %b %Y · %H:%M") }}</td>
+              <td class="is-number">{{ item.row_count|num }}</td>
+              <td class="is-number">{{ (item.row_count - item.flagged_count)|num }}</td>
+              <td class="is-number">{{ item.flagged_count|num }}</td>
+              <td>
+                {% if item.flagged_count == 0 %}
+                  <span class="status status-clean">{{ stamp(14) }} Ready</span>
+                {% else %}
+                  <span class="status status-review"><span class="status-dot is-warn"></span> Review</span>
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <div class="empty-state">
+      <span class="empty-icon">{{ upload(22) }}</span>
+      <h3>No imports yet</h3>
+      <p>Your first spreadsheet will appear here with its clean and flagged counts.</p>
+    </div>
+  {% endif %}
+</section>
+{% endblock %}

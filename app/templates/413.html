@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+
+{% block title %}File too large · DataPilot{% endblock %}
+
+{% block content %}
+<header class="page-head">
+  <div>
+    <p class="eyebrow">Upload</p>
+    <h1>File too large</h1>
+    <p class="lede">The upload limit is 5 MB. Choose a smaller CSV or Excel file.</p>
+  </div>
+</header>
+
+<p><a class="button" href="{{ url_for('main.index') }}">Back to imports</a></p>
+{% endblock %}

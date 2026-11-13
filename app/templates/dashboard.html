@@ -1,0 +1,182 @@
+{% extends "base.html" %}
+{% from "_icons.html" import download, arrow_left, stamp %}
+
+{% block title %}Dashboard · {{ import_record.filename }}{% endblock %}
+
+{% block content %}
+<a class="back-link" href="{{ url_for('main.import_detail', import_id=import_record.id) }}">{{ arrow_left(15) }} {{ import_record.filename }}</a>
+
+<header class="page-head">
+  <div>
+    <p class="eyebrow">Report</p>
+    <h1>Dashboard</h1>
+    <p class="lede">{{ import_record.filename }} · based on {{ dashboard.row_count }} valid rows</p>
+  </div>
+  <div class="actions">
+    <a class="button" href="{{ url_for('main.export_pdf', import_id=import_record.id) }}">{{ download(17) }} PDF report</a>
+    <a class="button button-secondary" href="{{ url_for('main.export_excel', import_id=import_record.id) }}">{{ download(17) }} Excel</a>
+  </div>
+</header>
+
+{% set primary = dashboard.metrics[0] if dashboard.metrics else None %}
+
+<section class="stat-row">
+  {% if primary %}
+    <div class="stat-card stat-primary">
+      <span class="stat-label">{{ primary.name|pretty|sentence }}</span>
+      <strong class="stat-value">{{ primary.total|num }}</strong>
+      <span class="stat-note">Sum across valid rows</span>
+    </div>
+  {% endif %}
+  <div class="stat-card">
+    <span class="stat-label">Clean rows</span>
+    <strong class="stat-value">{{ (import_record.row_count - import_record.flagged_count)|num }}</strong>
+    <span class="stat-note">Ready for reports</span>
+  </div>
+  <div class="stat-card">
+    <span class="stat-label">Needs attention</span>
+    <strong class="stat-value {{ 'is-warn' if import_record.flagged_count else '' }}">{{ import_record.flagged_count|num }}</strong>
+    <span class="stat-note">{{ "Excluded from charts" if import_record.flagged_count else "Nothing flagged" }}</span>
+  </div>
+</section>
+
+{% if dashboard.by_date or dashboard.by_dimension %}
+  <div class="report-grid">
+    <section class="panel chart-panel">
+      <div class="panel-heading">
+        <div>
+          <p class="eyebrow">Trend</p>
+          <h2>
+            {% if dashboard.by_date %}
+              {{ (dashboard.by_date.metric or "Rows")|pretty|sentence }} over time
+            {% else %}
+              {{ (dashboard.by_dimension.metric or "Rows")|pretty|sentence }} by {{ dashboard.dimension|pretty|lower_words }}
+            {% endif %}
+          </h2>
+        </div>
+        <span class="meta">Valid rows only</span>
+      </div>
+      <div id="main-chart" class="chart" role="img" aria-label="Chart of valid imported rows"></div>
+    </section>
+
+    <aside class="panel rank-panel">
+      {% if dashboard.by_dimension %}
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">Breakdown</p>
+            <h2>By {{ dashboard.dimension|pretty|lower_words }}</h2>
+          </div>
+        </div>
+        {% set top = dashboard.by_dimension['values']|max %}
+        <ul class="rank-list">
+          {% for label in dashboard.by_dimension.labels %}
+            {% set value = dashboard.by_dimension['values'][loop.index0] %}
+            <li class="rank-item">
+              <div class="rank-line">
+                <span class="rank-label">{{ label }}</span>
+                <span class="rank-value">{{ value|num }}</span>
+              </div>
+              <span class="rank-bar">
+                <span class="rank-fill {{ 'is-first' if loop.first else '' }}"
+                      style="width: {{ ((value / top) * 100)|round(1) if top else 0 }}%"></span>
+              </span>
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">Totals</p>
+            <h2>Summary</h2>
+          </div>
+        </div>
+        <ul class="total-list">
+          {% for metric in dashboard.metrics %}
+            <li>
+              <span>{{ metric.name|pretty|sentence }}</span>
+              <strong>{{ metric.total|num }}</strong>
+            </li>
+          {% endfor %}
+          <li><span>Clean rows</span><strong>{{ (import_record.row_count - import_record.flagged_count)|num }}</strong></li>
+        </ul>
+      {% endif %}
+    </aside>
+  </div>
+{% else %}
+  <section class="panel">
+    <div class="empty-state">
+      <span class="empty-icon">{{ stamp(24) }}</span>
+      <h3>No chartable columns yet</h3>
+      <p>This import has no numeric or category columns to chart. The Excel and PDF reports still work.</p>
+    </div>
+  </section>
+{% endif %}
+
+<p class="report-footnote">
+  {{ stamp(15) }} Charts use clean rows only. {{ import_record.flagged_count }} flagged rows stay in the Excel and PDF reports.
+</p>
+
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+<script>
+  const byDate = {{ dashboard.by_date|tojson }};
+  const byDimension = {{ dashboard.by_dimension|tojson }};
+  const chartEl = document.getElementById("main-chart");
+
+  if (chartEl && (byDate || byDimension)) {
+    const ink = "#5e554a";
+    const grid = "#e7e0d3";
+    const green = "#0f5c4a";
+    const taupe = "#d8cfbf";
+    const layout = {
+      margin: { t: 8, r: 12, b: 48, l: 56 },
+      paper_bgcolor: "rgba(0,0,0,0)",
+      plot_bgcolor: "rgba(0,0,0,0)",
+      font: { family: "Instrument Sans, system-ui, sans-serif", size: 12, color: ink },
+      hovermode: "x unified",
+      hoverlabel: { bgcolor: "#fdfaf4", bordercolor: grid, font: { color: "#1f1b16" } },
+      xaxis: { gridcolor: "rgba(0,0,0,0)", linecolor: grid, tickfont: { color: ink }, automargin: true },
+      yaxis: { gridcolor: grid, zeroline: false, tickfont: { color: ink }, automargin: true }
+    };
+    let trace;
+
+    if (byDate) {
+      trace = {
+        x: byDate.labels,
+        y: byDate.values,
+        type: "scatter",
+        mode: "lines",
+        line: { color: green, width: 2.5, shape: "spline" },
+        fill: "tozeroy",
+        fillcolor: "rgba(15, 92, 74, 0.07)",
+        hovertemplate: "%{x|%d %b %Y}<br>%{y:,.2f}<extra></extra>"
+      };
+      layout.xaxis.type = "date";
+      layout.xaxis.tickformat = "%d %b";
+      layout.yaxis.rangemode = "tozero";
+      layout.yaxis.dtick = Math.max(1, Math.ceil(Math.max(...byDate.values) / 5));
+    } else {
+      const max = Math.max(...byDimension.values);
+      trace = {
+        x: byDimension.labels,
+        y: byDimension.values,
+        type: "bar",
+        marker: {
+          color: byDimension.values.map(value => value === max ? green : taupe),
+          line: { width: 0 }
+        },
+        hovertemplate: "%{x}<br>%{y:,.2f}<extra></extra>"
+      };
+      layout.xaxis.tickangle = -25;
+      layout.yaxis.rangemode = "tozero";
+      layout.yaxis.dtick = Math.max(1, Math.ceil(max / 5));
+      layout.hovermode = "closest";
+    }
+
+    Plotly.newPlot(chartEl, [trace], layout, {
+      responsive: true,
+      displayModeBar: false,
+      displaylogo: false
+    });
+  }
+</script>
+{% endblock %}

@@ -1,0 +1,180 @@
+{% extends "base.html" %}
+{% from "_icons.html" import chart, download, mail, clock, alert, arrow_left %}
+
+{% block title %}{{ import_record.filename }} · DataPilot{% endblock %}
+
+{% block content %}
+<a class="back-link" href="{{ url_for('main.index') }}">{{ arrow_left(15) }} All imports</a>
+
+<header class="page-head">
+  <div>
+    <p class="eyebrow">Import</p>
+    <h1 class="file-title">{{ import_record.filename }}</h1>
+    <p class="lede">{{ import_record.uploaded_at|stamp_time }} · {{ import_record.row_count }} rows</p>
+  </div>
+  <div class="actions">
+    <a class="button" href="{{ url_for('main.dashboard', import_id=import_record.id) }}">{{ chart(17) }} Dashboard</a>
+    <a class="button button-secondary" href="{{ url_for('main.export_excel', import_id=import_record.id) }}">{{ download(17) }} Excel</a>
+    <a class="button button-secondary" href="{{ url_for('main.export_pdf', import_id=import_record.id) }}">{{ download(17) }} PDF</a>
+    <form method="post" action="{{ url_for('main.delete_import', import_id=import_record.id) }}"
+          onsubmit="return confirm('Delete this import and its file?')">
+      <button class="button-secondary" type="submit">Delete this import</button>
+    </form>
+  </div>
+</header>
+
+<section class="summary-strip" aria-label="Import summary">
+  <div class="summary-item">
+    <span class="summary-label">Rows</span>
+    <span class="summary-value">{{ import_record.row_count|num }}</span>
+  </div>
+  <div class="summary-item">
+    <span class="summary-label">Clean</span>
+    <span class="summary-value summary-clean">{{ (import_record.row_count - import_record.flagged_count)|num }}</span>
+  </div>
+  <div class="summary-item">
+    <span class="summary-label">Needs attention</span>
+    <span class="summary-value summary-review">{{ import_record.flagged_count|num }}</span>
+  </div>
+  <div class="summary-item summary-note">
+    <span class="status-dot {{ 'is-warn' if import_record.flagged_count else 'is-live' }}"></span>
+    {{ "Review the flagged rows before sending" if import_record.flagged_count else "Ready to report" }}
+  </div>
+</section>
+
+<section class="panel">
+  <div class="panel-heading">
+    <div>
+      <p class="eyebrow">Structure</p>
+      <h2>Columns detected</h2>
+    </div>
+    <span class="meta">{{ import_record.columns|length }} columns</span>
+  </div>
+  <div class="column-list">
+    {% for column in import_record.columns %}
+      <span class="column-chip">
+        <span class="column-name">{{ column.name|pretty }}</span>
+        <span class="column-type">{{ column.type|pretty_type }}</span>
+      </span>
+    {% endfor %}
+  </div>
+
+  <details class="source-file">
+    <summary>Source file kept for audit</summary>
+    <p class="muted">{{ import_record.stored_path }}</p>
+  </details>
+</section>
+
+<section class="panel">
+  <div class="panel-heading">
+    <div>
+      <p class="eyebrow">Delivery</p>
+      <h2>Email schedule</h2>
+    </div>
+    {% if import_record.schedule %}
+      <span class="status {{ 'status-clean' if import_record.schedule.enabled else 'status-paused' }}">
+        {{ "Enabled" if import_record.schedule.enabled else "Paused" }}
+      </span>
+    {% endif %}
+  </div>
+
+  {% if not smtp_configured %}
+    <p class="muted">Email runs in demo mode. Sends are written to the local outbox instead of being delivered.</p>
+  {% endif %}
+
+  {% if import_record.schedule %}
+    <p class="schedule-meta">
+      {{ clock(15) }}
+      Next run {{ import_record.schedule.next_run_at|stamp_time }}
+      {% if import_record.schedule.last_sent_at %}
+        <span class="meta-divider">·</span> Last sent {{ import_record.schedule.last_sent_at|stamp_time }}
+      {% else %}
+        <span class="meta-divider">·</span> Not sent yet
+      {% endif %}
+    </p>
+  {% else %}
+    <p class="muted">Send the PDF report automatically. Times are UTC.</p>
+  {% endif %}
+
+  <form class="schedule-form" method="post" action="{{ url_for('main.save_schedule', import_id=import_record.id) }}">
+    <label class="field field-wide">
+      <span>Recipient</span>
+      <input type="text" name="recipients" placeholder="finance@client.com"
+             value="{{ import_record.schedule.recipients if import_record.schedule else '' }}" required>
+    </label>
+    <label class="field">
+      <span>Frequency</span>
+      <select name="frequency">
+        <option value="daily" {{ "selected" if import_record.schedule and import_record.schedule.frequency == "daily" else "" }}>Daily</option>
+        <option value="weekly" {{ "selected" if import_record.schedule and import_record.schedule.frequency == "weekly" else "" }}>Weekly</option>
+      </select>
+    </label>
+    <label class="field">
+      <span>Hour (UTC)</span>
+      <input type="number" name="hour" min="0" max="23"
+             value="{{ import_record.schedule.hour if import_record.schedule else 8 }}">
+    </label>
+    <label class="check-field">
+      <input type="checkbox" name="enabled" {{ "checked" if not import_record.schedule or import_record.schedule.enabled else "" }}>
+      <span>Enabled</span>
+    </label>
+    <button type="submit">Save schedule</button>
+  </form>
+
+  {% if import_record.schedule %}
+    <form class="inline-form" method="post" action="{{ url_for('main.send_now', import_id=import_record.id) }}">
+      <button class="button-secondary" type="submit">{{ mail(16) }} Send now</button>
+    </form>
+  {% endif %}
+</section>
+
+<section class="panel">
+  <div class="panel-heading">
+    <div>
+      <p class="eyebrow">Data</p>
+      <h2>Rows</h2>
+    </div>
+    <span class="meta">{{ import_record.row_count }} rows · {{ import_record.flagged_count }} flagged</span>
+  </div>
+
+  <div class="table-scroll">
+    <table class="data-table rows-table">
+      <thead>
+        <tr>
+          <th class="is-number">#</th>
+          {% for column in import_record.columns %}
+            <th>{{ column.name|pretty }}</th>
+          {% endfor %}
+          <th>Needs attention</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in import_record.rows %}
+          <tr class="{{ 'row-flagged' if not row.is_valid else '' }}">
+            <td class="is-number row-number">{{ row.row_number }}</td>
+            {% for column in import_record.columns %}
+              {% set value = row.data.get(column.name) %}
+              <td>{{ value|cell(column.type) }}</td>
+            {% endfor %}
+            <td class="issues">
+              {% if row.issues %}
+                {% for issue in row.issues %}
+                  <span class="issue">
+                    {{ alert(14) }}
+                    <span>
+                      {% if issue.column %}<strong>{{ issue.column|pretty }}:</strong> {% endif %}
+                      {{ issue.message }}
+                    </span>
+                  </span>
+                {% endfor %}
+              {% else %}
+                <span class="muted">—</span>
+              {% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}
